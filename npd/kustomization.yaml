@@ -1,0 +1,8 @@
+# kustomize build --enable-helm npd | k apply -f -
+
+helmCharts:
+  - repo: https://charts.deliveryhero.io/
+    name: node-problem-detector
+    releaseName: node-problem-detector
+    namespace: kube-system
+    valuesFile: values.yaml

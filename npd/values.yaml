@@ -1,0 +1,120 @@
+image:
+  repository: custom-node-problem-detector
+  tag: latest
+  pullPolicy: Never
+
+settings:
+  custom_plugin_monitors:
+    - /custom-config/network-monitor.json
+  custom_monitor_definitions:
+    network-monitor.json: |
+      {
+        "plugin": "custom",
+        "pluginConfig": {
+          "invoke_interval": "30s",
+          "timeout": "5s",
+          "max_output_length": 80,
+          "concurrency": 3
+        },
+        "source": "network-custom-plugin-monitor",
+        "metricsReporting": true,
+        
+        "conditions": [
+          {
+            "type": "NetworkProblem",
+            "reason": "ApiServerUnreachable",
+            "message": "Kubernetes API server is reachable"
+          }
+        ],
+        "rules": [
+          {
+            "type": "permanent",
+            "condition": "NetworkProblem",
+            "reason": "ApiServerUnreachable",
+            "path": "./custom-config/plugin-network_problem.sh"
+          }
+        ]
+      }
+    plugin-network_problem.sh: |
+      #!/bin/bash
+      readonly OK=0
+      readonly NONOK=1
+      readonly UNKNOWN=2
+      
+      kubectl get node $NODE_NAME
+
+# Best explanation I've seen for custom plugin configuration is here:
+# https://github.com/kubernetes/node-problem-detector/blob/master/docs/custom_plugin_monitor.md
+#
+# But let's put it another way:
+# I have a script that can return an exit status of 0 or 1
+# If I put this script as the "path" of a "rule" with "type": "permanent"
+# - If it returns "0", then set the condition named by the rule's "condition" to the "reason" and "message" from the condition in the "conditions" section whose "type" matches this rule's "condition"
+# - If it returns "1", then set the condition named by the rule's "condition" to the "reason" from this "rule", and the "message" to the stdout.
+# If I put this script as the "path" of a "rule" with "type": "temporary"
+# - If it returns "0", then do nothing.
+# - If it returns "1", then output an Event with "reason" from this "rule", and "message" from stdout.
+
+# Recipes:
+#
+# I want a condition to be set according to how my script returns:
+# - Add "condition" with "type" and a "rule" with "condition" set to the same value: The name of the Condition you want to output.
+# - The rule should have "type": "permanent"
+#
+# I want an event to be emitted when my script returns non-zero status.
+# - Don't add anything to "conditions".
+# - Add a "rule" with "type": "temporary"
+# - Set the rule's "reason" to what you want emitted in the event.
+#
+# I want a condition and an event when my script returns non-zero.
+# - combine the above...
+# - A "condition" for the default state of the Condition.
+# - A "permanent" rule for the erroring state of the Condition.
+# - A "temporary" rule to emit an event.
+
+# Field references extracted from node-problem-detector source:
+#
+# "conditions": DefaultConditions are the default states of all the conditions custom plugin monitor should handle.
+# https://github.com/kubernetes/node-problem-detector/blob/v0.8.12/pkg/types/types.go#L56
+# // Condition is the node condition used internally by problem detector.
+#type Condition struct {
+#	// Type is the condition type. It should describe the condition of node in problem. For example
+#	// KernelDeadlock, OutOfResource etc.
+#	Type string `json:"type"`
+#	// Status indicates whether the node is in the condition or not.
+#	Status ConditionStatus `json:"status"`
+#	// Transition is the time when the node transits to this condition.
+#	Transition time.Time `json:"transition"`
+#	// Reason is a short reason of why node goes into this condition.
+#	Reason string `json:"reason"`
+#	// Message is a human readable message of why node goes into this condition.
+#	Message string `json:"message"`
+#}
+
+# "rules": Rules are the rules custom plugin monitor will follow to parse and invoke plugins.
+# https://github.com/kubernetes/node-problem-detector/blob/master/pkg/custompluginmonitor/types/types.go#L41
+# // CustomRule describes how custom plugin monitor should invoke and analyze plugins.
+#type CustomRule struct {
+#	// Type is the type of the problem.
+#   const (
+#	  // Temp means the problem is temporary, only need to report an event.
+# 	  Temp Type = "temporary"
+# 	  // Perm means the problem is permanent, need to change the node condition.
+# 	  Perm Type = "permanent"
+#   )
+#	Type types.Type `json:"type"`
+#	// Condition is the type of the condition the problem triggered. Notice that
+#	// the Condition field should be set only when the problem is permanent, or
+#	// else the field will be ignored.
+#	Condition string `json:"condition"`
+#	// Reason is the short reason of the problem.
+#	Reason string `json:"reason"`
+#	// Path is the path to the custom plugin.
+#	Path string `json:"path"`
+#	// Args is the args passed to the custom plugin.
+#	Args []string `json:"args"`
+#	// Timeout is the timeout string for the custom plugin to execute.
+#	TimeoutString *string `json:"timeout"`
+#	// Timeout is the timeout for the custom plugin to execute.
+#	Timeout *time.Duration `json:"-"`
+#}
