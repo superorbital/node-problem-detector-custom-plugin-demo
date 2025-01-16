@@ -22,7 +22,7 @@ settings:
         "conditions": [
           {
             "type": "NetworkProblem",
-            "reason": "ApiServerUnreachable",
+            "reason": "ApiServerReachable",
             "message": "Kubernetes API server is reachable"
           }
         ],
