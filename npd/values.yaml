@@ -43,6 +43,40 @@ settings:
       
       kubectl get node $NODE_NAME
 
+    poison-monitor.json: |
+      {
+        "plugin": "custom",
+        "pluginConfig": {
+          "invoke_interval": "30s",
+          "timeout": "5s",
+          "max_output_length": 80,
+          "concurrency": 3
+        },
+        "source": "poison-custom-plugin-monitor",
+        "metricsReporting": true,
+
+        "conditions": [
+          {
+            "type": "DemoProblem",
+            "reason": "RegularNode",
+            "message": "Nothing is wrong here"
+          }
+        ],
+        "rules": [
+          {
+            "type": "permanent",
+            "condition": "DemoProblem",
+            "reason": "PoisonNode",
+            "path": "./custom-config/plugin-demo_problem.sh"
+          }
+        ]
+      }
+
+    plugin-demo_problem.sh: |
+      #!/bin/bash
+      echo "$NODE_NAME is poisoned!"
+      [ "$NODE_NAME" != "npd-test-worker" ]
+
 # Best explanation I've seen for custom plugin configuration is here:
 # https://github.com/kubernetes/node-problem-detector/blob/master/docs/custom_plugin_monitor.md
 #
